@@ -3,19 +3,17 @@ from urllib.parse import urlparse
 import re
 import time
 
-# URLhausフィルターリストのURL
 URLHAUS_FILTER_URL = "https://urlhaus-filter.pages.dev/urlhaus-filter.txt"
 
-# フィルターリストのキャッシュ
 _filter_cache = {
     'domains': set(),
     'patterns': [],
     'last_update': 0,
-    'update_interval': 3600  # 1時間ごとに更新
+    'update_interval': 3600
 }
 
 def download_filter_list():
-    """URLhausフィルターリストをダウンロードして解析"""
+
     try:
         response = requests.get(URLHAUS_FILTER_URL, timeout=10)
         
@@ -29,7 +27,6 @@ def download_filter_list():
                 if not line or line.startswith('!') or line.startswith('['):
                     continue
                 
-                # ||example.com^ → example.com
                 if line.startswith('||') and '^' in line:
                     domain = line[2:].split('^')[0]
                     if domain:
@@ -56,7 +53,7 @@ def download_filter_list():
     return False
 
 def ensure_filter_updated():
-    """フィルターが最新かチェックし、必要なら更新"""
+
     current_time = time.time()
     
     if (not _filter_cache['patterns'] or 
@@ -66,7 +63,7 @@ def ensure_filter_updated():
     return bool(_filter_cache['patterns'])
 
 def extract_domain_from_url(url):
-    """URLからドメイン部分を抽出"""
+
     try:
         if not url.startswith(('http://', 'https://')):
             url = 'http://' + url
@@ -82,12 +79,7 @@ def extract_domain_from_url(url):
         return None
 
 def check_url_with_urlhaus(url):
-    """
-    URLhausフィルターを使用してURLのマルウェアチェック
-    
-    Returns:
-        bool: マルウェアが検出された場合はTrue
-    """
+
     try:
         if not ensure_filter_updated():
             return False
@@ -96,11 +88,9 @@ def check_url_with_urlhaus(url):
         if not domain:
             return False
         
-        # ドメインの直接一致をチェック
         if domain in _filter_cache['domains']:
             return True
-        
-        # 正規表現パターンでチェック
+
         full_url = url
         if not full_url.startswith(('http://', 'https://')):
             full_url = 'http://' + full_url
