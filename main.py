@@ -22,23 +22,19 @@ intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# ==================== データ保存用 ====================
-# JSONファイルのパス
 WHITELIST_FILE = 'invite_whitelist.json'
 
-# サーバーごとのホワイトリストチャンネル
 invite_whitelist_channels = defaultdict(set)
 user_message_counts = defaultdict(list)
 user_message_times = defaultdict(list)
 
 def load_whitelist():
-    """JSONファイルからホワイトリストを読み込み"""
+
     global invite_whitelist_channels
     try:
         if os.path.exists(WHITELIST_FILE):
             with open(WHITELIST_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                # キーをintに変換してdefaultdictに読み込み
                 invite_whitelist_channels = defaultdict(set)
                 for guild_id, channels in data.items():
                     invite_whitelist_channels[int(guild_id)] = set(channels)
@@ -47,16 +43,14 @@ def load_whitelist():
         print(f"ホワイトリスト読み込みエラー: {e}")
 
 def save_whitelist():
-    """ホワイトリストをJSONファイルに保存"""
+
     try:
-        # setをlistに変換してJSON保存
         data = {str(guild_id): list(channels) for guild_id, channels in invite_whitelist_channels.items()}
         with open(WHITELIST_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
     except Exception as e:
         print(f"ホワイトリスト保存エラー: {e}")
 
-# ==================== フィルター設定 ====================
 from better_profanity import profanity
 profanity.load_censor_words()
 
@@ -403,37 +397,30 @@ SHORTLINK_DOMAINS = [
     'rinu.jp'
 ]
 
-# ==================== Bot起動時の処理 ====================
 @bot.event
 async def on_ready():
     print(f'{bot.user} としてログインしました')
     print('------')
     
-    # ホワイトリストを読み込み
     load_whitelist()
     
-    # URLhausフィルターの初期ダウンロード
     print("URLhausフィルターを初期化中...")
     download_filter_list()
     
-    # スラッシュコマンドを同期
     try:
         synced = await bot.tree.sync()
         print(f"スラッシュコマンドを同期: {len(synced)}個")
     except Exception as e:
         print(f"スラッシュコマンドの同期に失敗: {e}")
     
-    # 全サーバーの外部アプリ権限を無効化
     for guild in bot.guilds:
         await disable_external_apps_permissions(guild)
 
-# ==================== サーバー参加時の自動処理 ====================
 @bot.event
 async def on_guild_join(guild):
-    """Botがサーバーに招待された直後に実行"""
+
     print(f'新しいサーバーに参加: {guild.name} (ID: {guild.id})')
     
-    # スラッシュコマンドを同期
     try:
         await bot.tree.sync(guild=guild)
     except Exception as e:
@@ -441,9 +428,8 @@ async def on_guild_join(guild):
     
     await disable_external_apps_permissions(guild)
 
-# ==================== 外部アプリ権限無効化 ====================
 async def disable_external_apps_permissions(guild):
-    """全ロールの外部アプリ権限を無効化"""
+
     try:
         for role in guild.roles:
             if role.is_bot_managed() or role.is_premium_subscriber():
@@ -460,12 +446,11 @@ async def disable_external_apps_permissions(guild):
     except Exception as e:
         print(f'エラー: {e}')
 
-# ==================== スラッシュコマンド ====================
 @bot.tree.command(name='disable_external_apps', description='全ロールの外部アプリ権限を無効化します')
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
 async def slash_disable_external_apps(interaction: discord.Interaction):
-    """全ロールの外部アプリ権限を無効化"""
+
     await interaction.response.defer(ephemeral=True)
     await disable_external_apps_permissions(interaction.guild)
     await interaction.followup.send('✅ 全ロールの外部アプリ権限を無効化しました', ephemeral=True)
@@ -475,7 +460,7 @@ async def slash_disable_external_apps(interaction: discord.Interaction):
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(channel='許可するチャンネル')
 async def slash_whitelist_add(interaction: discord.Interaction, channel: discord.TextChannel):
-    """招待リンク許可チャンネルを追加"""
+
     await interaction.response.defer(ephemeral=True)
     
     invite_whitelist_channels[interaction.guild.id].add(channel.id)
@@ -487,7 +472,7 @@ async def slash_whitelist_add(interaction: discord.Interaction, channel: discord
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(channel='削除するチャンネル')
 async def slash_whitelist_remove(interaction: discord.Interaction, channel: discord.TextChannel):
-    """招待リンク許可チャンネルを削除"""
+
     await interaction.response.defer(ephemeral=True)
     
     if channel.id in invite_whitelist_channels[interaction.guild.id]:
@@ -501,7 +486,7 @@ async def slash_whitelist_remove(interaction: discord.Interaction, channel: disc
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
 async def slash_whitelist_list(interaction: discord.Interaction):
-    """許可チャンネル一覧を表示"""
+
     await interaction.response.defer(ephemeral=True)
     
     channel_ids = invite_whitelist_channels.get(interaction.guild.id, set())
@@ -511,7 +496,6 @@ async def slash_whitelist_list(interaction: discord.Interaction):
     else:
         await interaction.followup.send('許可チャンネルは設定されていません', ephemeral=True)
 
-# ==================== メッセージフィルタリング ====================
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -519,7 +503,6 @@ async def on_message(message):
     
     is_admin = message.author.guild_permissions.administrator
     
-    # 各種フィルターチェック
     checks = [
         check_token_send(message),
         check_invite_links(message),
@@ -538,10 +521,8 @@ async def on_message(message):
             await message.delete()
             
             if is_admin:
-                # 管理者の場合は削除のみ、通知も出さない
                 return
             else:
-                # 一般ユーザーの場合はタイムアウト
                 try:
                     await message.author.timeout(
                         timedelta(hours=1),
@@ -555,41 +536,33 @@ async def on_message(message):
                     pass
                 return
 
-# ==================== フィルター関数群 ====================
 def check_profanity(message):
-    """不適切な言葉を検出"""
+
     if profanity.contains_profanity(message.content):
         return "不適切な言葉が検出されました"
     return None
     
 def extract_urls_from_message(content):
-    """メッセージからURLを抽出する共通関数"""
+
     urls = []
     
-    # 1. http/https で始まるURL
     urls.extend(re.findall(r'https?://[^\s<>"{}|\\^`\[\]]+', content, re.IGNORECASE))
     
-    # 2. www. で始まるURL
     www_urls = re.findall(r'www\.[^\s<>"{}|\\^`\[\]]+', content, re.IGNORECASE)
     urls.extend(www_urls)
     
-    # 3. プロトコルなしのドメイン形式（example.com/path など）
-    #    一般的なTLDを含むパターンを検出
     domain_pattern = r'(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:/[^\s<>"{}|\\^`\[\]]*)?'
     domain_urls = re.findall(domain_pattern, content, re.IGNORECASE)
     
     for url in domain_urls:
-        # すでに http/https/www で始まるURLに含まれていないか確認
         if not any(url in existing for existing in urls):
-            # メールアドレスやファイル名などを除外
             if not re.search(r'@', url) and not url.endswith(('.py', '.js', '.css', '.html', '.txt', '.json', '.xml')):
                 urls.append(url)
     
-    # 重複を削除
     return list(set(urls))
 
 def check_token_send(message):
-    """Discordトークン送信を検出"""
+
     token_patterns = [
         r'[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}',
         r'[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{38}',
@@ -602,8 +575,7 @@ def check_token_send(message):
     return None
 
 def check_invite_links(message):
-    """Discord招待リンクを検出（チャンネルホワイトリスト対応）"""
-    # 様々な招待リンク形式に対応
+
     invite_patterns = [
         r'(?:https?://)?(?:www\.)?discord\.gg/([a-zA-Z0-9\-_]+)',
         r'(?:https?://)?(?:www\.)?discord\.com/invite/([a-zA-Z0-9\-_]+)',
@@ -611,7 +583,6 @@ def check_invite_links(message):
         r'(?:https?://)?(?:www\.)?discord\.io/([a-zA-Z0-9\-_]+)',
         r'(?:https?://)?(?:www\.)?discord\.me/([a-zA-Z0-9\-_]+)',
         r'(?:https?://)?(?:www\.)?discord\.li/([a-zA-Z0-9\-_]+)',
-        # プロトコルなしの discord.gg/xxxxx
         r'(?:^|\s)discord\.gg/([a-zA-Z0-9\-_]+)',
         r'(?:^|\s)discord\.com/invite/([a-zA-Z0-9\-_]+)',
     ]
@@ -627,17 +598,14 @@ def check_invite_links(message):
     return None
 
 def check_shortlinks(message):
-    """短縮リンクを検出"""
+
     urls = extract_urls_from_message(message.content)
     
     for url in urls:
-        # URLからドメインを抽出
         domain = url.lower()
-        # プロトコルを除去
         for prefix in ['https://', 'http://', 'www.']:
             if domain.startswith(prefix):
                 domain = domain[len(prefix):]
-        # パスとポートを除去
         domain = domain.split('/')[0]
         domain = domain.split(':')[0]
         
@@ -647,11 +615,11 @@ def check_shortlinks(message):
     return None
 
 def check_malware_links(message):
-    """マルウェアリンクを検出（URLhausフィルター使用）"""
+
     urls = extract_urls_from_message(message.content)
     
     for url in urls:
-        # URLを正規化
+
         check_url = url
         if not check_url.startswith(('http://', 'https://')):
             check_url = 'http://' + check_url
@@ -661,7 +629,7 @@ def check_malware_links(message):
     return None
 
 def check_spam(message):
-    """スパムを検出（短時間での同一メッセージ）"""
+
     user_id = message.author.id
     current_time = datetime.now()
     
@@ -680,7 +648,7 @@ def check_spam(message):
     return None
 
 def check_flood(message):
-    """フラッド（高速メッセージ送信）を検出"""
+
     user_id = message.author.id
     current_time = datetime.now()
     
@@ -697,7 +665,7 @@ def check_flood(message):
     return None
 
 def check_emoji_spam(message):
-    """絵文字スパムを検出"""
+
     custom_emoji = len(re.findall(r'<a?:[a-zA-Z0-9_]+:[0-9]+>', message.content))
     unicode_emoji = len(re.findall(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF'
                                    r'\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF'
@@ -709,14 +677,14 @@ def check_emoji_spam(message):
     return None
 
 def check_spoiler_spam(message):
-    """スポイラースパムを検出"""
+
     spoiler_count = message.content.count('||')
     if spoiler_count >= 10:
         return "スポイラースパムが検出されました"
     return None
 
 def check_markdown_spam(message):
-    """マークダウンスパムを検出"""
+
     markdown_patterns = [
         r'#{1,6}\s',
     ]
@@ -728,7 +696,6 @@ def check_markdown_spam(message):
     if markdown_count >= 5:
         return "マークダウンスパムが検出されました"
     return None
-# ==================== エラーハンドリング ====================
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.errors.MissingPermissions):
@@ -736,6 +703,5 @@ async def on_app_command_error(interaction: discord.Interaction, error):
     else:
         await interaction.response.send_message(f'❌ エラーが発生しました: {error}', ephemeral=True)
 
-# ==================== Bot起動 ====================
 if __name__ == "__main__":
     bot.run(TOKEN)
