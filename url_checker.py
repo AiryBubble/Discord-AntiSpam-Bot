@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 import re
 import time
 
-FILTER_URL = "https://example.com/filter.txt"
+FILTER_URL = "filter url here"
 
 _filter_cache = {
     'domains': set(),
