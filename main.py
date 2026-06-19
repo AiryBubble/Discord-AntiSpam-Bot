@@ -579,6 +579,38 @@ async def slash_violation_reset(interaction: discord.Interaction, user: discord.
     else:
         await interaction.followup.send(f'{user.mention} の違反履歴はありません', ephemeral=True)
 
+@bot.tree.command(name='unban', description='指定ユーザーのBANを解除します')
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(user_id='BAN解除するユーザーのID')
+async def slash_unban(interaction: discord.Interaction, user_id: str):
+
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        banned_users = [entry async for entry in interaction.guild.bans()]
+        user = discord.Object(id=int(user_id))
+        
+        is_banned = any(entry.user.id == int(user_id) for entry in banned_users)
+        
+        if is_banned:
+            await interaction.guild.unban(user, reason=f"{interaction.user} によるBAN解除")
+            
+            if interaction.guild.id in violation_tracker and int(user_id) in violation_tracker[interaction.guild.id]:
+                del violation_tracker[interaction.guild.id][int(user_id)]
+                save_banlog()
+            
+            await interaction.followup.send(f'ユーザーID `{user_id}` のBANを解除し、違反履歴もリセットしました', ephemeral=True)
+        else:
+            await interaction.followup.send(f'ユーザーID `{user_id}` はBANされていません', ephemeral=True)
+    
+    except ValueError:
+        await interaction.followup.send('無効なユーザーIDです。数字のみで指定してください', ephemeral=True)
+    except discord.Forbidden:
+        await interaction.followup.send('BAN解除の権限がありません', ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f'エラーが発生しました: {e}', ephemeral=True)
+
 @bot.event
 async def on_message(message):
     if message.author.bot:
