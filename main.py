@@ -23,10 +23,47 @@ intents.members = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 WHITELIST_FILE = 'invite_whitelist.json'
+BANLOG_FILE = 'ban_log.json'
 
 invite_whitelist_channels = defaultdict(set)
 user_message_counts = defaultdict(list)
 user_message_times = defaultdict(list)
+violation_tracker = defaultdict(lambda: defaultdict(lambda: {'count': 0, 'last_violation': None, 'violations': []}))
+
+def load_banlog():
+
+    global violation_tracker
+    try:
+        if os.path.exists(BANLOG_FILE):
+            with open(BANLOG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                for guild_id, users in data.items():
+                    for user_id, info in users.items():
+                        violation_tracker[int(guild_id)][int(user_id)] = {
+                            'count': info['count'],
+                            'last_violation': info['last_violation'],
+                            'violations': info['violations']
+                        }
+            print(f"BAN履歴を読み込みました")
+    except Exception as e:
+        print(f"BAN履歴読み込みエラー: {e}")
+
+def save_banlog():
+
+    try:
+        data = {}
+        for guild_id, users in violation_tracker.items():
+            data[str(guild_id)] = {}
+            for user_id, info in users.items():
+                data[str(guild_id)][str(user_id)] = {
+                    'count': info['count'],
+                    'last_violation': info['last_violation'],
+                    'violations': info['violations']
+                }
+        with open(BANLOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"BAN履歴保存エラー: {e}")
 
 def load_whitelist():
 
@@ -403,6 +440,8 @@ async def on_ready():
     print('------')
     
     load_whitelist()
+
+    load_banlog()
     
     print("フィルターを初期化中...")
     download_filter_list()
@@ -453,7 +492,7 @@ async def slash_disable_external_apps(interaction: discord.Interaction):
 
     await interaction.response.defer(ephemeral=True)
     await disable_external_apps_permissions(interaction.guild)
-    await interaction.followup.send('✅ 全ロールの外部アプリ権限を無効化しました', ephemeral=True)
+    await interaction.followup.send('全ロールの外部アプリ権限を無効化しました', ephemeral=True)
 
 @bot.tree.command(name='invite_whitelist_add', description='招待リンクの送信を許可するチャンネルを追加します')
 @app_commands.default_permissions(administrator=True)
@@ -465,7 +504,7 @@ async def slash_whitelist_add(interaction: discord.Interaction, channel: discord
     
     invite_whitelist_channels[interaction.guild.id].add(channel.id)
     save_whitelist()
-    await interaction.followup.send(f'✅ {channel.mention} を招待リンク許可チャンネルに追加しました', ephemeral=True)
+    await interaction.followup.send(f'{channel.mention} を招待リンク許可チャンネルに追加しました', ephemeral=True)
 
 @bot.tree.command(name='invite_whitelist_remove', description='招待リンクの送信を許可するチャンネルを削除します')
 @app_commands.default_permissions(administrator=True)
@@ -478,9 +517,9 @@ async def slash_whitelist_remove(interaction: discord.Interaction, channel: disc
     if channel.id in invite_whitelist_channels[interaction.guild.id]:
         invite_whitelist_channels[interaction.guild.id].remove(channel.id)
         save_whitelist()
-        await interaction.followup.send(f'✅ {channel.mention} を招待リンク許可チャンネルから削除しました', ephemeral=True)
+        await interaction.followup.send(f'{channel.mention} を招待リンク許可チャンネルから削除しました', ephemeral=True)
     else:
-        await interaction.followup.send('❌ そのチャンネルは許可リストにありません', ephemeral=True)
+        await interaction.followup.send('そのチャンネルは許可リストにありません', ephemeral=True)
 
 @bot.tree.command(name='invite_whitelist_list', description='招待リンク許可チャンネルの一覧を表示します')
 @app_commands.default_permissions(administrator=True)
@@ -495,6 +534,50 @@ async def slash_whitelist_list(interaction: discord.Interaction):
         await interaction.followup.send(f'**招待リンク許可チャンネル:**\n{channel_list}', ephemeral=True)
     else:
         await interaction.followup.send('許可チャンネルは設定されていません', ephemeral=True)
+
+@bot.tree.command(name='violation_check', description='指定ユーザーの違反履歴を確認します')
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(user='確認するユーザー')
+async def slash_violation_check(interaction: discord.Interaction, user: discord.Member):
+
+    await interaction.response.defer(ephemeral=True)
+    
+    guild_id = interaction.guild.id
+    user_data = violation_tracker.get(guild_id, {}).get(user.id, None)
+    
+    if user_data and user_data['violations']:
+        embed = discord.Embed(
+            title=f"{user.display_name} の違反履歴",
+            color=discord.Color.orange()
+        )
+        embed.add_field(name="違反回数", value=f"{user_data['count']}/{BAN_THRESHOLD}", inline=False)
+        embed.add_field(name="最終違反", value=user_data['last_violation'], inline=False)
+        
+        violations_text = ""
+        for i, v in enumerate(user_data['violations'][-5:], 1):
+            violations_text += f"{i}. {v['reason']} ({v['time']})\n"
+        embed.add_field(name="最近の違反", value=violations_text or "なし", inline=False)
+        
+        await interaction.followup.send(embed=embed, ephemeral=True)
+    else:
+        await interaction.followup.send(f'{user.mention} の違反履歴はありません', ephemeral=True)
+
+@bot.tree.command(name='violation_reset', description='指定ユーザーの違反カウントをリセットします')
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(user='リセットするユーザー')
+async def slash_violation_reset(interaction: discord.Interaction, user: discord.Member):
+
+    await interaction.response.defer(ephemeral=True)
+    
+    guild_id = interaction.guild.id
+    if guild_id in violation_tracker and user.id in violation_tracker[guild_id]:
+        del violation_tracker[guild_id][user.id]
+        save_banlog()
+        await interaction.followup.send(f'{user.mention} の違反カウントをリセットしました', ephemeral=True)
+    else:
+        await interaction.followup.send(f'{user.mention} の違反履歴はありません', ephemeral=True)
 
 @bot.event
 async def on_message(message):
@@ -523,18 +606,73 @@ async def on_message(message):
             if is_admin:
                 return
             else:
-                try:
-                    await message.author.timeout(
-                        timedelta(hours=1),
-                        reason=check
-                    )
-                    await message.channel.send(
-                        f'⚠️ {message.author.mention} が自動タイムアウトされました (1時間)\n理由: {check}',
-                        delete_after=10
-                    )
-                except discord.Forbidden:
-                    pass
+                result = await handle_violation(message, check)
                 return
+
+BAN_THRESHOLD = 3
+VIOLATION_RESET_TIME = 3600
+BAN_MESSAGE_DELETE_DAYS = 1
+
+async def handle_violation(message, reason):
+
+    guild_id = message.guild.id
+    user_id = message.author.id
+    current_time = datetime.now().isoformat()
+    
+    user_data = violation_tracker[guild_id][user_id]
+    if user_data['last_violation']:
+        last_time = datetime.fromisoformat(user_data['last_violation'])
+        if (datetime.now() - last_time).total_seconds() > VIOLATION_RESET_TIME:
+            user_data['count'] = 0
+            user_data['violations'] = []
+    
+    user_data['count'] += 1
+    user_data['last_violation'] = current_time
+    user_data['violations'].append({
+        'reason': reason,
+        'channel': message.channel.id,
+        'time': current_time
+    })
+    save_banlog()
+    
+    violation_count = user_data['count']
+    
+    if violation_count >= BAN_THRESHOLD:
+        try:
+            await message.author.ban(
+                reason=f"累積違反 {violation_count} 回: {reason}",
+                delete_message_days=BAN_MESSAGE_DELETE_DAYS
+            )
+            await message.channel.send(
+                f'{message.author.mention} がBANされました\n'
+                f'理由: 累積違反 {violation_count} 回 - {reason}',
+                delete_after=30
+            )
+            del violation_tracker[guild_id][user_id]
+            save_banlog()
+            return "banned"
+        except discord.Forbidden:
+            await message.channel.send(
+                f'{message.author.mention} がBAN条件を満たしましたが、権限不足でBANできませんでした',
+                delete_after=10
+            )
+            return "failed"
+    else:
+        try:
+            timeout_duration = min(5 * violation_count, 30)
+            await message.author.timeout(
+                timedelta(minutes=timeout_duration),
+                reason=f"違反 {violation_count}/{BAN_THRESHOLD}: {reason}"
+            )
+            await message.channel.send(
+                f'{message.author.mention} がタイムアウトされました ({timeout_duration}分)\n'
+                f'理由: [{violation_count}/{BAN_THRESHOLD}] {reason}\n'
+                f'あと {BAN_THRESHOLD - violation_count} 回の違反でBANされます',
+                delete_after=15
+            )
+            return "timeout"
+        except discord.Forbidden:
+            return "failed"
 
 def check_profanity(message):
 
@@ -699,9 +837,9 @@ def check_markdown_spam(message):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.errors.MissingPermissions):
-        await interaction.response.send_message('❌ このコマンドを実行する権限がありません', ephemeral=True)
+        await interaction.response.send_message('このコマンドを実行する権限がありません', ephemeral=True)
     else:
-        await interaction.response.send_message(f'❌ エラーが発生しました: {error}', ephemeral=True)
+        await interaction.response.send_message(f'エラーが発生しました: {error}', ephemeral=True)
 
 if __name__ == "__main__":
     bot.run(TOKEN)
