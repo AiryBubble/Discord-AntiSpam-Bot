@@ -8,7 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 import better_profanity
 from dotenv import load_dotenv
-from url_checker import check_url_with_urlhaus, download_filter_list
+from url_checker import check_url_with_filter, download_filter_list
 import json
 
 load_dotenv()
@@ -404,7 +404,7 @@ async def on_ready():
     
     load_whitelist()
     
-    print("URLhausフィルターを初期化中...")
+    print("フィルターを初期化中...")
     download_filter_list()
     
     try:
@@ -624,7 +624,7 @@ def check_malware_links(message):
         if not check_url.startswith(('http://', 'https://')):
             check_url = 'http://' + check_url
         
-        if check_url_with_urlhaus(check_url):
+        if check_url_with_filter(check_url):
             return f"マルウェアリンクが検出されました ({url})"
     return None
 
