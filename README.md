@@ -17,6 +17,10 @@ pip install -r requirements.txt
 ```
 ## .envにbotのトークンを入れる
 - **discord bot token here**と書かれたところをbotのトークンに置換する
+## url_checker.pyにフィルターのURLを入れる
+- **filter url here**と書かれたところをフィルターのURLに置換する
+
+オススメは[urlhaus-filter](https://gitlab.com/malware-filter/urlhaus-filter)のuBlock Origin版です
 ## botを実行する
 ```batch
 py main.py
