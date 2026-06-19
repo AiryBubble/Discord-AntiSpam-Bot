@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 import re
 import time
 
-URLHAUS_FILTER_URL = "https://urlhaus-filter.pages.dev/urlhaus-filter.txt"
+FILTER_URL = "https://example.com/filter.txt"
 
 _filter_cache = {
     'domains': set(),
@@ -15,7 +15,7 @@ _filter_cache = {
 def download_filter_list():
 
     try:
-        response = requests.get(URLHAUS_FILTER_URL, timeout=10)
+        response = requests.get(FILTER_URL, timeout=10)
         
         if response.status_code == 200:
             domains = set()
@@ -44,7 +44,7 @@ def download_filter_list():
             _filter_cache['patterns'] = patterns
             _filter_cache['last_update'] = time.time()
             
-            print(f"URLhausフィルターを更新: {len(domains)} ドメイン")
+            print(f"フィルターを更新: {len(domains)} ドメイン")
             return True
         
     except Exception as e:
@@ -78,7 +78,7 @@ def extract_domain_from_url(url):
     except:
         return None
 
-def check_url_with_urlhaus(url):
+def check_url_with_filter(url):
 
     try:
         if not ensure_filter_updated():
