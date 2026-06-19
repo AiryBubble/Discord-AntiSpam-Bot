@@ -29,4 +29,4 @@ pip install -r requirements.txt
 py main.py
 ```
 # 備考
-それぞれのライブラリのライセンスは**3RD_PARTY_LICENSES**フォルダを参照してください
+それぞれのライブラリのライセンスは**LIBRARY_LICENSES**フォルダを参照してください
