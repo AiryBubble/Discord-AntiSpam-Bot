@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 import re
 import time
 
-URLHAUS_FILTER_URL = "https://example.com/filter.txt"
+URLHAUS_FILTER_URL = "https://urlhaus-filter.pages.dev/urlhaus-filter.txt"
 
 _filter_cache = {
     'domains': set(),
