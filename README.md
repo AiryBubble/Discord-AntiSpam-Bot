@@ -50,5 +50,3 @@ py main.py
 ```
 /invite_whitelist_add channel:任意のチャンネル
 ```
-# 備考
-- それぞれのライブラリのライセンスは**LIBRARY_LICENSES**フォルダを参照してください
