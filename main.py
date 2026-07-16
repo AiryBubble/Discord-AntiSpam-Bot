@@ -781,7 +781,7 @@ def check_shortlinks(message):
         
         for shortlink_domain in SHORTLINK_DOMAINS:
             if domain == shortlink_domain or domain.endswith('.' + shortlink_domain):
-                return f"短縮リンクが検出されました ({domain})"
+                return f"短縮リンクが検出されました"
     return None
 
 def check_malware_links(message):
@@ -795,7 +795,7 @@ def check_malware_links(message):
             check_url = 'http://' + check_url
         
         if check_url_with_filter(check_url):
-            return f"マルウェアリンクが検出されました ({url})"
+            return f"マルウェアリンクが検出されました"
     return None
 
 def check_spam(message):
